@@ -68,14 +68,14 @@ def get_sun_angles_for_day(latitude, longitude, date=None, local_timezone=None, 
     return times, np.array(altitudes), np.array(azimuths)
 
 def main():
-    # Example location: New York City
+    # We are choosing center of Belgium as location
     latitude = 50.6403
     longitude = 4.6667
-    timezone_str = 'Europe/Madrid'  # Use None for UTC
+    timezone_str = 'Europe/Madrid'  # Same timezone as Belgium
 
     tempos, altituds, azmuths = [], [], []
     
-    # Get today's date (or specify a particular date)
+    # From date_1 to date_2
     date_1 = datetime(2019, 1, 1)
     date_2 = datetime(2025, 3, 31)
 
