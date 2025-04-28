@@ -14,3 +14,5 @@ https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
 ## References
 
 1. Inspiration of the project: https://github.com/anantgupta129/Solar-Power-Generation-Forecasting
+2. Source for solar generation in Belgium: https://www.elia.be/en/grid-data/generation-data/solar-pv-power-generation-data
+3. Source for weather data: https://open-meteo.com/
