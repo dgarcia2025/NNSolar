@@ -108,192 +108,161 @@ timestamps_test = timestamps[int(len(solar_angles) * 0.85) - (4 * 11):]
 test_len_15 = int(0.2 * len(solar_angles) - 1) - 6*4
 
 # First model, Feedforward
+class feedforwardNN:
+    def __init__(self,
+                 ignore_columns=None,
+                 hidden_layers=None,
+                 activation='relu',
+                 learning_rate=0.001,
+                 epochs=100,
+                 batch_size=32,
+                 verbose=1,
+                 random_state=42):
+        """
+        Initialize the feedforward neural network parameters.
+        """
+        self.ignore_columns = ignore_columns or []
+        self.hidden_layers = hidden_layers or [64, 32]
+        self.activation = activation
+        self.learning_rate = learning_rate
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.verbose = verbose
+        self.random_state = random_state
 
-def build_neural_network(X_df, y_array, ignore_columns=None, hidden_layers=[64, 32, 16],
-                         activation='relu', learning_rate=0.001, epochs=100, batch_size=32,
-                         verbose=1, random_state=42):
-    """
-    Build and train a neural network model based on input dataframe and NumPy target array
+        # Attributes to be set during fit
+        self.scaler = None
+        self.model = None
+        self.history = None
+        self.metadata = {}
+        self.X_train = self.X_val = self.X_test = None
+        self.y_train = self.y_val = self.y_test = None
 
-    Parameters:
-    -----------
-    X_df : pandas DataFrame
-        Input dataframe containing features
-    y_array : numpy.ndarray
-        Target values as a NumPy array
-    ignore_columns : list, optional
-        List of column names to ignore
-    hidden_layers : list, optional
-        List of neurons in each hidden layer
-    activation : str, optional
-        Activation function for hidden layers
-    learning_rate : float, optional
-        Learning rate for Adam optimizer
-    epochs : int, optional
-        Number of training epochs
-    batch_size : int, optional
-        Batch size for training
-    verbose : int, optional
-        Verbosity mode (0, 1, or 2)
-    random_state : int, optional
-        Random seed for reproducibility
+    def _prepare_data(self, X_df, y_array):
+        # Copy and drop ignored columns
+        data = X_df.copy()
+        if self.ignore_columns:
+            cols_to_drop = [col for col in self.ignore_columns if col in data.columns]
+            data.drop(columns=cols_to_drop, inplace=True)
 
-    Returns:
-    --------
-    dict
-        Dictionary containing model, history, and data splits
-    """
-    # Make a copy of the dataframe to avoid modifying the original
-    data = X_df.copy()
+        # Record metadata
+        self.metadata['column_info'] = {col: str(data[col].dtype) for col in data.columns}
+        categorical_cols = data.select_dtypes(include=['object']).columns.tolist()
+        self.metadata['categorical_columns'] = categorical_cols
+        self.metadata['ignore_columns'] = self.ignore_columns
 
-    # Ensure y is a numpy array
-    y = np.array(y_array)
+        # One-hot encode categoricals
+        for col in categorical_cols:
+            dummies = pd.get_dummies(data[col], prefix=col, drop_first=True)
+            data = pd.concat([data, dummies], axis=1)
+            data.drop(columns=[col], inplace=True)
 
-    # Remove ignored columns if specified
-    if ignore_columns:
-        data = data.drop(columns=[col for col in ignore_columns if col in data.columns])
+        # Features and target
+        X = data.values
+        y = np.array(y_array)
+        n = len(X)
+        test_size = int(n * 0.15)
+        val_size = int(n * 0.15)
+        train_size = n - test_size - val_size
 
-    # Store original column names and their types for future prediction
-    column_info = {col: str(data[col].dtype) for col in data.columns}
-    categorical_columns = data.select_dtypes(include=['object']).columns.tolist()
+        # Split (preserving order)
+        self.X_train = X[:train_size]
+        self.y_train = y[:train_size]
+        self.X_val = X[train_size: train_size + val_size]
+        self.y_val = y[train_size: train_size + val_size]
+        self.X_test = X[train_size + val_size:]
+        self.y_test = y[train_size + val_size:]
 
-    # Check for non-numeric columns and handle them
-    for col in categorical_columns:
-        print(f"Converting categorical column '{col}' to one-hot encoding")
-        dummies = pd.get_dummies(data[col], prefix=col, drop_first=True)
-        data = pd.concat([data, dummies], axis=1)
-        data = data.drop(columns=[col])
+        # Standardize
+        self.scaler = StandardScaler()
+        self.X_train = self.scaler.fit_transform(self.X_train)
+        self.X_val = self.scaler.transform(self.X_val)
+        self.X_test = self.scaler.transform(self.X_test)
 
-    # Convert features to numpy array
-    X = data.values
-
-    # Split data into train, validation, and test sets (70/15/15)
-    # X_train_val, X_test, y_train_val, y_test = train_test_split(X, y, test_size=0.15, random_state=random_state)
-    # X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=0.1765, random_state=random_state)
-    # Note: 0.1765 is approximately 15/85, which gives us a 15% validation set from the remaining 85% after test split
-
-    n = len(X)
-    test_size = int(n * 0.15)
-    val_size = int(n * 0.15)
-    train_size = n - test_size - val_size
-
-    # Manual split preserving order
-    X_train = X[:train_size]
-    y_train = y[:train_size]
-
-    X_val = X[train_size:train_size + val_size]
-    y_val = y[train_size:train_size + val_size]
-
-    X_test = X[train_size + val_size:]
-    y_test = y[train_size + val_size:]
-
-
-    # Standardize the features
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_val = scaler.transform(X_val)
-    X_test = scaler.transform(X_test)
-
-    # Determine input dimension
-    input_dim = X_train.shape[1]
-
-    # Build the model
-    model = Sequential()
-
-    # Input layer
-    model.add(Dense(hidden_layers[0], activation=activation, input_dim=input_dim))
-    model.add(Dropout(0.2))
-
-    # Hidden layers
-    for units in hidden_layers[1:]:
-        model.add(Dense(units, activation=activation))
+    def _build_model(self, input_dim):
+        model = Sequential()
+        # Input layer + dropout
+        model.add(Dense(self.hidden_layers[0], activation=self.activation, input_dim=input_dim))
         model.add(Dropout(0.2))
+        # Hidden layers
+        for units in self.hidden_layers[1:]:
+            model.add(Dense(units, activation=self.activation))
+            model.add(Dropout(0.2))
+        # Output layer
+        model.add(Dense(1))  # Linear for regression
 
-    # Output layer (linear activation for regression)
-    model.add(Dense(1))
+        optimizer = Adam(learning_rate=self.learning_rate)
+        model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+        return model
 
-    # Compile the model
-    optimizer = Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+    def fit(self, X_df, y_array):
+        """
+        Prepare data, build model, and train.
+        """
+        # Data prep
+        self._prepare_data(X_df, y_array)
 
-    # Early stopping to prevent overfitting
-    early_stopping = EarlyStopping(
-        monitor='val_loss',
-        patience=15,
-        restore_best_weights=True
-    )
+        # Build model
+        input_dim = self.X_train.shape[1]
+        self.model = self._build_model(input_dim)
 
-    # Train the model
-    history = model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=epochs,
-        batch_size=batch_size,
-        callbacks=[early_stopping],
-        verbose=verbose
-    )
+        # Early stopping
+        early_stop = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
 
-    # Evaluate the model on test data
-    test_loss, test_mae = model.evaluate(X_test, y_test, verbose=0)
-    print(f"Test Loss (MSE): {test_loss:.4f}")
-    print(f"Test MAE: {test_mae:.4f}")
+        # Train
+        self.history = self.model.fit(
+            self.X_train, self.y_train,
+            validation_data=(self.X_val, self.y_val),
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            callbacks=[early_stop],
+            verbose=self.verbose
+        )
+        # Evaluate
+        loss, mae = self.model.evaluate(self.X_test, self.y_test, verbose=0)
+        print(f"Test Loss (MSE): {loss:.4f}")
+        print(f"Test MAE: {mae:.4f}")
+        return {'loss': loss, 'mae': mae}
 
-    # Plot training history
-    plot_training_history(history)
+    def plot_history(self):
+        """
+        Plot training & validation loss and MAE.
+        """
+        if self.history is None:
+            raise ValueError("No training history. Call fit() first.")
+        hist = self.history.history
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        ax1.plot(hist['loss'], label='Train Loss')
+        ax1.plot(hist['val_loss'], label='Val Loss')
+        ax1.set_title('Loss (MSE)')
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('MSE')
+        ax1.legend()
+        ax1.grid(True)
 
-    # Create model metadata
-    model_metadata = {
-        'feature_names': data.columns.tolist(),
-        'categorical_columns': categorical_columns,
-        'column_info': column_info,
-        'ignore_columns': ignore_columns
-    }
+        ax2.plot(hist['mae'], label='Train MAE')
+        ax2.plot(hist['val_mae'], label='Val MAE')
+        ax2.set_title('Mean Absolute Error')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('MAE')
+        ax2.legend()
+        ax2.grid(True)
 
-    # Return the model, history, and data
-    return {
-        'model': model,
-        'history': history,
-        'X_train': X_train,
-        'y_train': y_train,
-        'X_val': X_val,
-        'y_val': y_val,
-        'X_test': X_test,
-        'y_test': y_test,
-        'scaler': scaler,
-        'metadata': model_metadata
-    }
+        plt.tight_layout()
+        plt.show()
 
-def plot_training_history(history):
-    """
-    Plot the training and validation loss and MAE
-
-    Parameters:
-    -----------
-    history : tensorflow.keras.callbacks.History
-        History object returned from model.fit()
-    """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-
-    # Plot training & validation loss
-    ax1.plot(history.history['loss'], label='Training Loss')
-    ax1.plot(history.history['val_loss'], label='Validation Loss')
-    ax1.set_title('Model Loss')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss (MSE)')
-    ax1.legend()
-    ax1.grid(True)
-
-    # Plot training & validation MAE
-    ax2.plot(history.history['mae'], label='Training MAE')
-    ax2.plot(history.history['val_mae'], label='Validation MAE')
-    ax2.set_title('Model MAE')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Mean Absolute Error')
-    ax2.legend()
-    ax2.grid(True)
-
-    plt.tight_layout()
-    plt.show()
+    def save(self, model_path, scaler_path, metadata_path):
+        """
+        Save the trained model, scaler, and metadata to disk.
+        """
+        if self.model is None or self.scaler is None:
+            raise ValueError("Model or scaler not found. Train the network before saving.")
+        # Save Keras model
+        self.model.save(model_path)
+        # Save scaler and metadata
+        import joblib
+        joblib.dump(self.scaler, scaler_path)
+        joblib.dump(self.metadata, metadata_path)
 
 # Second model, LSTM
 def create_sequences(feature_data, target_data, sequence_length):
