@@ -4,5 +4,9 @@ The goal of this project is to build a Neural Network capale of forecasting sola
 
 ## Importance of forecasting solar power generation
 
+For the electrical grid to work correctly the power demand must equal the genartion demand. That's why each day, the forecasts of solar power generation for next day must be done by 11 p.m, which is when the energy is sold in form of an auction. 
+
+A deviation in genartion from the amount of energy sold in the auction results in economic penalties.
+
 
 https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
