@@ -8,6 +8,12 @@ For the electrical grid to work correctly the power demand must equal the genart
 
 A deviation in genartion from the amount of energy sold in the auction results in economic penalties.
 
+## Architecture
+
+This project compares 3 models. Feedforward, LSTM and an informer.
+
+### FeedForward
+
 
 https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
 
