@@ -17,6 +17,10 @@ This project compares 3 models. Feedforward, LSTM and an informer. The data sepa
 
 ### FeedForward
 
+### LSTM
+
+### Informer
+
 ## Results
 
 ### FeedForward
