@@ -29,7 +29,7 @@ Below are the plots of predictions vs actual generation for three days.
 
 ![days](https://github.com/user-attachments/assets/3f694ef4-d5a0-42fb-aab8-f46098d943e3)
 
-Notice how the predictions aren't smooth, we can apply smoothing to make the results more accurate.
+Notice how the predictions aren't smooth, we can apply smoothing to make the results more accurate. The R2 metric is improved to 0.907.
 
 ![days_feed_smooth](https://github.com/user-attachments/assets/617790f8-a10d-48ce-946b-6bb358a33f93)
 
