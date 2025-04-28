@@ -650,3 +650,51 @@ class InformerModel:
             predictions = predictions.flatten()
 
         return predictions
+
+
+# In case you want to execute the trainings
+execute = False
+# execute = True
+if execute == True:
+    # Model 1 - Feedforward
+    nn = feedforwardNN(
+        ignore_columns=[],
+        hidden_layers=[64, 32, 16],
+        epochs=100
+    )
+    results = nn.fit(inputs_df, solar_generation)
+    nn.plot_history()
+    nn.save(
+        'model1.keras',
+        'scaler1.pkl',
+        'metadata1.pkl'
+    )
+
+    # # Model 2 - LSTM
+    # lstm = LSTMNN(sequence_length=16, exclude_columns=[], epochs=10, batch_size=32)\# results = lstm.fit(df, y_array)
+    # lstm.plot_history()
+    # lstm.plot_predictions('test')
+    # lstm.save('model2.keras', 'scalerX2.pkl', 'scalerY2.pkl')
+
+    # Model 3 - Informer
+    informer = InformerModel()
+    results = informer.train_model(
+        df=inputs_df,
+        y=solar_generation,
+        drop_columns=[],  # Example of dropping a column
+        epochs=50,
+        batch_size=32,
+        patience=5,
+        verbose=1
+    )
+
+    print(f"\nResults:")
+    print(f"Validation MAE: {results['val_mae']:.2f}")
+    print(f"Test MAE: {results['test_mae']:.2f}")
+    print(f"Training time: {results['training_time']:.2f} seconds")
+
+    informer.model.save('informer_model.keras')  # Save Keras model
+    joblib.dump({'scaler_X': informer.scaler_X,
+                'scaler_y': informer.scaler_y,
+                'history': informer.history},
+                'informer_attributes.pkl')  # Save other attributes
