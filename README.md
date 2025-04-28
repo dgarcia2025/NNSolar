@@ -39,13 +39,13 @@ Notice how the predictions aren't smooth, we can apply smoothing to make the res
 
 ### LSTM
 
-Below are the plots of predictions vs actual generation for three days. 
+Below are the plots of predictions vs actual generation for three days. The model is very good at capturing the pattern of the data. The reason why the metrics are bad is because in the long term the model starts missing.
 
 ![days_lstm](https://github.com/user-attachments/assets/221e296c-9bd6-48e4-ab23-3be8612d98f7)
 
 ### Informer
 
-Below are the plots of predictions vs actual generation for three days.
+Below are the plots of predictions vs actual generation for three days. The model fails specially when the generation is very high.
 
 ![days_inform](https://github.com/user-attachments/assets/0c1a61be-5261-4e0c-bf7b-ec9cbeb74688)
 
