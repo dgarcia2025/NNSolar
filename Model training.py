@@ -25,9 +25,9 @@ import seaborn as sns
 import time
 
 # Reading the .csv s (Substitute with your paths)
-route_gen = 'Generation_solar_Belgium.csv'
+route_gen = 'Generation_solar.csv'
 route_angles = 'Solar_angle.csv'
-route_weather = 'weather_data.csv'
+route_weather = 'weather.csv'
 
 solar_generation_df = pd.read_csv(route_gen, sep = ';')
 weather_df = pd.read_csv(route_weather, sep= ',')
