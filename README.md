@@ -29,11 +29,17 @@ Below are the plots of predictions vs actual generation for three days.
 
 ![days](https://github.com/user-attachments/assets/3f694ef4-d5a0-42fb-aab8-f46098d943e3)
 
+Notice how the predictions aren't smooth, we can apply smoothing to make the results more accurate.
+
 ### LSTM
+
+Below are the plots of predictions vs actual generation for three days. 
 
 ![days_lstm](https://github.com/user-attachments/assets/221e296c-9bd6-48e4-ab23-3be8612d98f7)
 
 ### Informer
+
+Below are the plots of predictions vs actual generation for three days.
 
 ![days_inform](https://github.com/user-attachments/assets/0c1a61be-5261-4e0c-bf7b-ec9cbeb74688)
 
