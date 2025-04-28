@@ -23,6 +23,16 @@ This project compares 3 models. Feedforward, LSTM and an informer. The data sepa
 
 ![train feed](https://github.com/user-attachments/assets/f52eb6f7-ba7e-4901-a624-ad4d8124d494)
 
+![days](https://github.com/user-attachments/assets/3f694ef4-d5a0-42fb-aab8-f46098d943e3)
+
+### LSTM
+
+![days_lstm](https://github.com/user-attachments/assets/221e296c-9bd6-48e4-ab23-3be8612d98f7)
+
+### Informer
+
+![days_inform](https://github.com/user-attachments/assets/0c1a61be-5261-4e0c-bf7b-ec9cbeb74688)
+
 https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
 
 ## References
