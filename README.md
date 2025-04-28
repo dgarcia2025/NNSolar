@@ -21,7 +21,11 @@ This project compares 3 models. Feedforward, LSTM and an informer. The data sepa
 
 ### FeedForward
 
+The training took about 40 epochs.
+
 ![train feed](https://github.com/user-attachments/assets/f52eb6f7-ba7e-4901-a624-ad4d8124d494)
+
+
 
 ![days](https://github.com/user-attachments/assets/3f694ef4-d5a0-42fb-aab8-f46098d943e3)
 
