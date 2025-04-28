@@ -10,7 +10,10 @@ A deviation in genartion from the amount of energy sold in the auction results i
 
 ## Architecture
 
-This project compares 3 models. Feedforward, LSTM and an informer.
+This project compares 3 models. Feedforward, LSTM and an informer. The data separation is:
+ - 70 % train data
+ - 15 % validation
+ - 15 % test
 
 ### FeedForward
 
