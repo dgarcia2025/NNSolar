@@ -10,3 +10,7 @@ A deviation in genartion from the amount of energy sold in the auction results i
 
 
 https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
+
+## References
+
+1. Inspiration of the project: https://github.com/anantgupta129/Solar-Power-Generation-Forecasting
