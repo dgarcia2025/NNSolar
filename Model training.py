@@ -109,7 +109,7 @@ test_len_15 = int(0.2 * len(solar_angles) - 1) - 6*4
 
 # First model, Feedforward
 
-def build_neural_network(X_df, y_array, ignore_columns=None, hidden_layers=[64, 32],
+def build_neural_network(X_df, y_array, ignore_columns=None, hidden_layers=[64, 32, 16],
                          activation='relu', learning_rate=0.001, epochs=100, batch_size=32,
                          verbose=1, random_state=42):
     """
@@ -294,3 +294,144 @@ def plot_training_history(history):
 
     plt.tight_layout()
     plt.show()
+
+# Second model, LSTM
+def create_sequences(feature_data, target_data, sequence_length):
+    """
+    Create sequences for LSTM input with separate feature and target arrays.
+
+    Parameters:
+    - feature_data: scaled feature data (numpy array)
+    - target_data: scaled target data (numpy array)
+    - sequence_length: number of time steps for each LSTM input
+
+    Returns:
+    - X sequences and y values
+    """
+    xs, ys = [], []
+    for i in range(len(feature_data) - sequence_length):
+        # For features, we need sequence_length consecutive samples
+        x = feature_data[i:i + sequence_length]
+        # For target, we need the value after the sequence
+        y = target_data[i + sequence_length]
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
+def build_lstm_model(input_shape, output_dim):
+    """Build and compile the LSTM model."""
+    model = Sequential()
+    model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.2))
+    model.add(LSTM(64, return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(LSTM(32))
+    model.add(Dropout(0.2))
+    model.add(Dense(output_dim))
+
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
+def plot_training_history(history):
+    """Plot training and validation loss."""
+    plt.figure(figsize=(12, 6))
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Model Loss During Training')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def plot_predictions(actual, predicted, title='Actual vs Predicted'):
+    """Plot actual vs predicted values."""
+    plt.figure(figsize=(12, 6))
+    plt.plot(actual, label='Actual')
+    plt.plot(predicted, label='Predicted')
+    plt.title(title)
+    plt.xlabel('Time Step')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def train_lstm(df, y_array, sequence_length=10, exclude_columns=None, epochs=50, batch_size=32):
+    """
+    Train an LSTM model with features from DataFrame and target from numpy array.
+
+    Parameters:
+    - df: pandas DataFrame containing features
+    - y_array: numpy array containing target values
+    - sequence_length: number of time steps for each LSTM input
+    - exclude_columns: list of column names to exclude from training
+    - epochs: number of training epochs
+    - batch_size: batch size for training
+
+    Returns:
+    - trained model
+    - scalers for features and target
+    - feature column names
+    - train/test data
+    - history object
+    """
+    # Handle excluded columns
+    if exclude_columns is None:
+        exclude_columns = []
+
+    # Ensure y_array is 2D
+    if len(y_array.shape) == 1:
+        y_array = y_array.reshape(-1, 1)
+
+    # Validate input sizes
+    if len(df) != len(y_array):
+        raise ValueError(f"DataFrame has {len(df)} rows but target array has {len(y_array)} elements. They must be equal.")
+
+    # Separate feature columns from excluded ones
+    feature_cols = [col for col in df.columns if col not in exclude_columns]
+
+    # Extract features
+    X = df[feature_cols].values
+    y = y_array
+
+    # Scale the data
+    X_scaler = MinMaxScaler(feature_range=(0, 1))
+    y_scaler = MinMaxScaler(feature_range=(0, 1))
+
+    X_scaled = X_scaler.fit_transform(X)
+    y_scaled = y_scaler.fit_transform(y)
+
+    # Create sequences
+    X_seq, y_seq = create_sequences(X_scaled, y_scaled, sequence_length)
+
+    # Split into train, validation, and test sets (70% train, 15% validation, 15% test)
+    X_train, X_temp, y_train, y_temp = train_test_split(X_seq, y_seq, test_size=0.3, shuffle=False)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=False)
+
+    # Build and train the model
+    model = build_lstm_model(input_shape=(X_train.shape[1], X_train.shape[2]), output_dim=y_train.shape[1])
+
+    history = model.fit(
+        X_train, y_train,
+        epochs=epochs,
+        batch_size=batch_size,
+        validation_data=(X_val, y_val),
+        verbose=1
+    )
+
+    # Plot training history
+    plot_training_history(history)
+
+    # Evaluate on test set
+    test_loss = model.evaluate(X_test, y_test, verbose=0)
+    print(f"Test loss: {test_loss}")
+
+    # Make predictions on test set
+    y_test_pred_scaled = model.predict(X_test)
+    y_test_pred = y_scaler.inverse_transform(y_test_pred_scaled)
+    y_test_actual = y_scaler.inverse_transform(y_test)
+
+    # Plot test predictions
+    plot_predictions(y_test_actual, y_test_pred, title='Test Set: Actual vs Predicted')
+
+    return model, X_scaler, y_scaler, feature_cols, sequence_length, (X_train, X_val, X_test, y_train, y_val, y_test), history
