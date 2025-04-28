@@ -265,146 +265,145 @@ class feedforwardNN:
         joblib.dump(self.metadata, metadata_path)
 
 # Second model, LSTM
-def create_sequences(feature_data, target_data, sequence_length):
-    """
-    Create sequences for LSTM input with separate feature and target arrays.
+class LSTMNN:
+    def __init__(self,
+                 sequence_length,
+                 exclude_columns=None,
+                 epochs=50,
+                 batch_size=32,
+                 verbose=1,
+                 random_state=None):
+        """
+        Initialize LSTM neural network parameters.
+        """
+        self.sequence_length = sequence_length
+        self.exclude_columns = exclude_columns or []
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.verbose = verbose
+        self.random_state = random_state
 
-    Parameters:
-    - feature_data: scaled feature data (numpy array)
-    - target_data: scaled target data (numpy array)
-    - sequence_length: number of time steps for each LSTM input
+        # To be set during fit
+        self.X_scaler = None
+        self.y_scaler = None
+        self.model = None
+        self.history = None
+        self.feature_cols = []
+        self.metadata = {}
+        self.data_splits = None
 
-    Returns:
-    - X sequences and y values
-    """
-    xs, ys = [], []
-    for i in range(len(feature_data) - sequence_length):
-        # For features, we need sequence_length consecutive samples
-        x = feature_data[i:i + sequence_length]
-        # For target, we need the value after the sequence
-        y = target_data[i + sequence_length]
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
+    def _create_sequences(self, X, y):
+        xs, ys = [], []
+        for i in range(len(X) - self.sequence_length):
+            xs.append(X[i:i + self.sequence_length])
+            ys.append(y[i + self.sequence_length])
+        return np.array(xs), np.array(ys)
 
-def build_lstm_model(input_shape, output_dim):
-    """Build and compile the LSTM model."""
-    model = Sequential()
-    model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
-    model.add(Dropout(0.2))
-    model.add(LSTM(64, return_sequences=True))
-    model.add(Dropout(0.2))
-    model.add(LSTM(32))
-    model.add(Dropout(0.2))
-    model.add(Dense(output_dim))
+    def _build_model(self, input_shape, output_dim):
+        model = Sequential()
+        model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
+        model.add(Dropout(0.2))
+        model.add(LSTM(64, return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(LSTM(32))
+        model.add(Dropout(0.2))
+        model.add(Dense(output_dim))
+        model.compile(optimizer='adam', loss='mse')
+        return model
 
-    model.compile(optimizer='adam', loss='mse')
-    return model
+    def fit(self, df, y_array):
+        """
+        Prepare data, build LSTM model, and train.
+        """
+        # Ensure y is 2D
+        y = y_array.reshape(-1, 1) if y_array.ndim == 1 else y_array
+        if len(df) != len(y):
+            raise ValueError(f"Feature rows {len(df)} != target rows {len(y)}")
 
-def plot_training_history(history):
-    """Plot training and validation loss."""
-    plt.figure(figsize=(12, 6))
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Model Loss During Training')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        # Exclude columns
+        self.feature_cols = [c for c in df.columns if c not in self.exclude_columns]
+        X = df[self.feature_cols].values
 
-def plot_predictions(actual, predicted, title='Actual vs Predicted'):
-    """Plot actual vs predicted values."""
-    plt.figure(figsize=(12, 6))
-    plt.plot(actual, label='Actual')
-    plt.plot(predicted, label='Predicted')
-    plt.title(title)
-    plt.xlabel('Time Step')
-    plt.ylabel('Value')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        # Scale
+        self.X_scaler = MinMaxScaler()
+        self.y_scaler = MinMaxScaler()
+        X_scaled = self.X_scaler.fit_transform(X)
+        y_scaled = self.y_scaler.fit_transform(y)
 
-def train_lstm(df, y_array, sequence_length=10, exclude_columns=None, epochs=50, batch_size=32):
-    """
-    Train an LSTM model with features from DataFrame and target from numpy array.
+        # Sequence generation
+        X_seq, y_seq = self._create_sequences(X_scaled, y_scaled)
 
-    Parameters:
-    - df: pandas DataFrame containing features
-    - y_array: numpy array containing target values
-    - sequence_length: number of time steps for each LSTM input
-    - exclude_columns: list of column names to exclude from training
-    - epochs: number of training epochs
-    - batch_size: batch size for training
+        # Split (70/15/15)
+        X_train, X_temp, y_train, y_temp = train_test_split(
+            X_seq, y_seq, test_size=0.3, shuffle=False, random_state=self.random_state)
+        X_val, X_test, y_val, y_test = train_test_split(
+            X_temp, y_temp, test_size=0.5, shuffle=False, random_state=self.random_state)
+        self.data_splits = (X_train, X_val, X_test, y_train, y_val, y_test)
 
-    Returns:
-    - trained model
-    - scalers for features and target
-    - feature column names
-    - train/test data
-    - history object
-    """
-    # Handle excluded columns
-    if exclude_columns is None:
-        exclude_columns = []
+        # Build & train
+        input_shape = (X_train.shape[1], X_train.shape[2])
+        output_dim = y_train.shape[1]
+        self.model = self._build_model(input_shape, output_dim)
+        self.history = self.model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            verbose=self.verbose
+        )
 
-    # Ensure y_array is 2D
-    if len(y_array.shape) == 1:
-        y_array = y_array.reshape(-1, 1)
+        # Evaluate
+        loss = self.model.evaluate(X_test, y_test, verbose=0)
+        print(f"Test loss: {loss}")
+        return {'loss': loss}
 
-    # Validate input sizes
-    if len(df) != len(y_array):
-        raise ValueError(f"DataFrame has {len(df)} rows but target array has {len(y_array)} elements. They must be equal.")
+    def plot_history(self):
+        if self.history is None:
+            raise ValueError("Call fit() before plotting.")
+        h = self.history.history
+        plt.figure(figsize=(12, 6))
+        plt.plot(h['loss'], label='Train Loss')
+        plt.plot(h['val_loss'], label='Val Loss')
+        plt.title('Training History')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
-    # Separate feature columns from excluded ones
-    feature_cols = [col for col in df.columns if col not in exclude_columns]
+    def plot_predictions(self, which='test'):
+        if self.model is None or self.data_splits is None:
+            raise ValueError("Model not trained. Call fit() first.")
+        X_train, X_val, X_test, y_train, y_val, y_test = self.data_splits
+        if which == 'test':
+            X, y_true = X_test, y_test
+            title = 'Test Set: Actual vs Predicted'
+        elif which == 'val':
+            X, y_true = X_val, y_val
+            title = 'Validation Set: Actual vs Predicted'
+        else:
+            raise ValueError("which must be 'test' or 'val'.")
+        y_pred_scaled = self.model.predict(X)
+        y_pred = self.y_scaler.inverse_transform(y_pred_scaled)
+        y_actual = self.y_scaler.inverse_transform(y_true)
+        plt.figure(figsize=(12, 6))
+        plt.plot(y_actual, label='Actual')
+        plt.plot(y_pred, label='Predicted')
+        plt.title(title)
+        plt.xlabel('Time Step')
+        plt.ylabel('Value')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
-    # Extract features
-    X = df[feature_cols].values
-    y = y_array
-
-    # Scale the data
-    X_scaler = MinMaxScaler(feature_range=(0, 1))
-    y_scaler = MinMaxScaler(feature_range=(0, 1))
-
-    X_scaled = X_scaler.fit_transform(X)
-    y_scaled = y_scaler.fit_transform(y)
-
-    # Create sequences
-    X_seq, y_seq = create_sequences(X_scaled, y_scaled, sequence_length)
-
-    # Split into train, validation, and test sets (70% train, 15% validation, 15% test)
-    X_train, X_temp, y_train, y_temp = train_test_split(X_seq, y_seq, test_size=0.3, shuffle=False)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=False)
-
-    # Build and train the model
-    model = build_lstm_model(input_shape=(X_train.shape[1], X_train.shape[2]), output_dim=y_train.shape[1])
-
-    history = model.fit(
-        X_train, y_train,
-        epochs=epochs,
-        batch_size=batch_size,
-        validation_data=(X_val, y_val),
-        verbose=1
-    )
-
-    # Plot training history
-    plot_training_history(history)
-
-    # Evaluate on test set
-    test_loss = model.evaluate(X_test, y_test, verbose=0)
-    print(f"Test loss: {test_loss}")
-
-    # Make predictions on test set
-    y_test_pred_scaled = model.predict(X_test)
-    y_test_pred = y_scaler.inverse_transform(y_test_pred_scaled)
-    y_test_actual = y_scaler.inverse_transform(y_test)
-
-    # Plot test predictions
-    plot_predictions(y_test_actual, y_test_pred, title='Test Set: Actual vs Predicted')
-
-    return model, X_scaler, y_scaler, feature_cols, sequence_length, (X_train, X_val, X_test, y_train, y_val, y_test), history
-
+    def save(self, model_path, X_scaler_path, y_scaler_path):
+        if self.model is None:
+            raise ValueError("Train model before saving.")
+        # Save model and scalers
+        self.model.save(model_path)
+        joblib.dump(self.X_scaler, X_scaler_path)
+        joblib.dump(self.y_scaler, y_scaler_path)
+        
 # Model 6 - Informers
 
 class InformerModel:
