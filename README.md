@@ -31,6 +31,8 @@ Below are the plots of predictions vs actual generation for three days.
 
 Notice how the predictions aren't smooth, we can apply smoothing to make the results more accurate.
 
+![days_feed_smooth](https://github.com/user-attachments/assets/617790f8-a10d-48ce-946b-6bb358a33f93)
+
 ### LSTM
 
 Below are the plots of predictions vs actual generation for three days. 
