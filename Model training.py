@@ -435,3 +435,250 @@ def train_lstm(df, y_array, sequence_length=10, exclude_columns=None, epochs=50,
     plot_predictions(y_test_actual, y_test_pred, title='Test Set: Actual vs Predicted')
 
     return model, X_scaler, y_scaler, feature_cols, sequence_length, (X_train, X_val, X_test, y_train, y_val, y_test), history
+
+# Model 6 - Informers
+
+class InformerModel:
+    def __init__(self):
+        self.model = None
+        self.history = None
+        self.scaler_X = MinMaxScaler()
+        self.scaler_y = MinMaxScaler()
+
+    def build_informer(self, input_shape, output_shape,
+                       head_size=32, num_heads=1, ff_dim=64, num_transformer_blocks=2,
+                       mlp_units=[32, 16], dropout=0.1):
+        """
+        Build an Informer-based model
+
+        # ... (other arguments remain the same) ...
+        """
+        inputs = Input(shape=input_shape)
+        x = inputs
+
+        # First apply a dense layer to project the input
+        x = Dense(head_size * num_heads, activation="relu")(x)
+
+        # Informer uses distilling attention mechanism
+        for _ in range(num_transformer_blocks):
+            # Multi-head attention with simpler configuration
+            attention_output = MultiHeadAttention(
+                num_heads=num_heads,
+                key_dim=head_size,
+                # Add the following line to explicitly set the attention axis
+                attention_axes=1
+            )(x, x)
+
+            # Add & Norm
+            x = LayerNormalization(epsilon=1e-6)(attention_output + x)
+
+            # Feed Forward
+            ff_output = Dense(ff_dim, activation="relu")(x)
+            ff_output = Dropout(dropout)(ff_output)
+            ff_output = Dense(head_size * num_heads)(ff_output)
+
+            # Add & Norm
+            x = LayerNormalization(epsilon=1e-6)(ff_output + x)
+
+        # MLP Head for prediction
+        for dim in mlp_units:
+            x = Dense(dim, activation="relu")(x)
+            x = Dropout(dropout)(x)
+
+        outputs = Dense(output_shape)(x)
+
+        return Model(inputs, outputs)
+
+    def train_model(self, df, y, drop_columns=None,
+                    validation_split=0.15, test_split=0.15,
+                    epochs=100, batch_size=32,
+                    patience=10, verbose=1):
+        """
+        Train the Informer model for solar forecasting
+
+        Args:
+            df: DataFrame with input features
+            y: Numpy array with target values
+            drop_columns: List of columns to drop from df
+            validation_split: Fraction of data for validation (default 0.15)
+            test_split: Fraction of data for testing (default 0.15)
+            epochs: Number of training epochs
+            batch_size: Batch size for training
+            patience: Early stopping patience
+            verbose: Verbosity level for training
+
+        Returns:
+            Dictionary with trained model, history, and evaluation metrics
+        """
+        # Drop specified columns
+        if drop_columns:
+            df = df.drop(columns=drop_columns)
+
+        # Define the split points
+        train_size = int(len(df) * (1 - validation_split - test_split))
+        val_size = int(len(df) * validation_split)
+
+        # Split the data
+        X_train = df.iloc[:train_size].values
+        y_train = y[:train_size]
+
+        X_val = df.iloc[train_size:train_size+val_size].values
+        y_val = y[train_size:train_size+val_size]
+
+        X_test = df.iloc[train_size+val_size:].values
+        y_test = y[train_size+val_size:]
+
+        # Normalize the data
+        X_train = self.scaler_X.fit_transform(X_train)
+        X_val = self.scaler_X.transform(X_val)
+        X_test = self.scaler_X.transform(X_test)
+
+        # Convert to numpy arrays
+        if isinstance(y_train, pd.Series):
+            y_train = y_train.to_numpy()
+        if isinstance(y_val, pd.Series):
+            y_val = y_val.to_numpy()
+        if isinstance(y_test, pd.Series):
+            y_test = y_test.to_numpy()
+
+        # Reshape y for the scaler
+        y_train_2d = y_train.reshape(-1, 1) if len(y_train.shape) == 1 else y_train
+        y_val_2d = y_val.reshape(-1, 1) if len(y_val.shape) == 1 else y_val
+        y_test_2d = y_test.reshape(-1, 1) if len(y_test.shape) == 1 else y_test
+
+        # Scale the targets
+        y_train_scaled = self.scaler_y.fit_transform(y_train_2d)
+        y_val_scaled = self.scaler_y.transform(y_val_2d)
+        y_test_scaled = self.scaler_y.transform(y_test_2d)
+
+        # Flatten if the original was 1D
+        if len(y_train.shape) == 1:
+            y_train_scaled = y_train_scaled.flatten()
+            y_val_scaled = y_val_scaled.flatten()
+            y_test_scaled = y_test_scaled.flatten()
+
+        # Build the model
+        input_shape = (X_train.shape[1],)
+        output_shape = 1 if len(y_train.shape) == 1 else y_train.shape[1]
+
+        self.model = self.build_informer(input_shape, output_shape)
+
+        # Model summary
+        self.model.summary()
+
+        # Compile the model
+        self.model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            loss='mae',
+            metrics=['mae']
+        )
+
+        # Early stopping
+        early_stopping = EarlyStopping(
+            monitor='val_loss',
+            patience=patience,
+            restore_best_weights=True
+        )
+
+        # Train the model
+        start_time = time.time()
+        self.history = self.model.fit(
+            X_train, y_train_scaled,
+            validation_data=(X_val, y_val_scaled),
+            epochs=epochs,
+            batch_size=batch_size,
+            callbacks=[early_stopping],
+            verbose=verbose
+        )
+        training_time = time.time() - start_time
+
+        # Evaluate the model
+        val_predictions_scaled = self.model.predict(X_val)
+        test_predictions_scaled = self.model.predict(X_test)
+
+        # Reshape predictions for inverse transform if needed
+        if len(y_train.shape) == 1:
+            val_predictions_scaled = val_predictions_scaled.reshape(-1, 1)
+            test_predictions_scaled = test_predictions_scaled.reshape(-1, 1)
+
+        # Inverse transform predictions
+        val_predictions = self.scaler_y.inverse_transform(val_predictions_scaled)
+        test_predictions = self.scaler_y.inverse_transform(test_predictions_scaled)
+
+        # Flatten predictions if needed
+        if len(y_train.shape) == 1:
+            val_predictions = val_predictions.flatten()
+            test_predictions = test_predictions.flatten()
+
+        # Calculate metrics
+        val_mae = mean_absolute_error(y_val, val_predictions)
+        test_mae = mean_absolute_error(y_test, test_predictions)
+
+        # Plot training history
+        self.plot_training_history()
+
+        # Return results
+        return {
+            'model': self.model,
+            'history': self.history,
+            'val_mae': val_mae,
+            'test_mae': test_mae,
+            'training_time': training_time,
+            'predictions': {
+                'validation': val_predictions,
+                'test': test_predictions
+            },
+            'actual': {
+                'validation': y_val,
+                'test': y_test
+            },
+            'X_scaler': self.scaler_X,
+            'y_scaler': self.scaler_y
+        }
+
+    def plot_training_history(self):
+        """Plot the training and validation loss and MAE"""
+        plt.figure(figsize=(15, 5))
+
+        # Plot loss
+        plt.subplot(1, 2, 1)
+        plt.plot(self.history.history['loss'], label='Training Loss')
+        plt.plot(self.history.history['val_loss'], label='Validation Loss')
+        plt.title('Loss over Epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss (MAE)')
+        plt.legend()
+        plt.grid(True)
+
+        # Plot MAE
+        plt.subplot(1, 2, 2)
+        plt.plot(self.history.history['mae'], label='Training MAE')
+        plt.plot(self.history.history['val_mae'], label='Validation MAE')
+        plt.title('MAE over Epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel('MAE')
+        plt.legend()
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+    def predict(self, X_new):
+        """Make predictions with the trained model"""
+        if isinstance(X_new, pd.DataFrame):
+            X_new = X_new.values
+
+        X_new_scaled = self.scaler_X.transform(X_new)
+        predictions_scaled = self.model.predict(X_new_scaled)
+
+        # Reshape if needed for inverse_transform
+        if len(predictions_scaled.shape) == 1 or predictions_scaled.shape[1] == 1:
+            predictions_scaled = predictions_scaled.reshape(-1, 1)
+
+        predictions = self.scaler_y.inverse_transform(predictions_scaled)
+
+        # Flatten output if it's a single feature
+        if predictions.shape[1] == 1:
+            predictions = predictions.flatten()
+
+        return predictions
