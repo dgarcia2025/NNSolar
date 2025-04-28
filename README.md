@@ -2,5 +2,4 @@
 Final Project: Neural Networks
 
 
-https://github.com/user-attachments/assets/34e9b8b4-21e3-462a-9b37-939b2cb3e1b4
-
+https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
