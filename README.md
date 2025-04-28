@@ -45,6 +45,8 @@ Below are the plots of predictions vs actual generation for three days.
 
 ![days_inform](https://github.com/user-attachments/assets/0c1a61be-5261-4e0c-bf7b-ec9cbeb74688)
 
+Below is a video explaining the project.
+
 https://github.com/user-attachments/assets/d78cbc60-b05a-40ab-8093-6aa89e9ac1b2
 
 ## References
