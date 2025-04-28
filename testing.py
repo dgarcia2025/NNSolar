@@ -1,5 +1,91 @@
 # Code to evaluate the model
 
+# Reading the datasets
+# Reading the .csv s (Substitute with your paths)
+route_gen = 'Generation_solar.csv'
+route_angles = 'Solar_angle.csv'
+route_weather = 'weather.csv'
+
+solar_generation_df = pd.read_csv(route_gen, sep = ';')
+weather_df = pd.read_csv(route_weather, sep= ',')
+solar_angles_df = pd.read_csv(route_angles, sep=',')
+weather_df.fillna(0)
+
+# Preparing the data
+# Since the genaration at night will be 0, we can simply take the values from 06:00 a.m to 22:00 p.m
+solar_generation, capacity, timestamps, competition = [], [], [], []
+for i, date in enumerate(solar_generation_df['DateTime']):
+    hour = int(date[11]+date[12])
+    if hour >= 6 and hour <= 21:
+        solar_generation.append(solar_generation_df['Real-time Upscaled Measurement [MW]'][i])
+        capacity.append(solar_generation_df['Monitored Capacity [MWp]'][i])
+        timestamps.append(solar_generation_df['DateTime'][i])
+        competition.append(solar_generation_df['Day-Ahead forecast (11h00) [MW]'][i])
+
+solar_generation = np.array(solar_generation, dtype=str)
+solar_generation = np.char.replace(solar_generation, ',', '.')
+solar_generation = solar_generation.astype(float)
+capacity = np.array(capacity, dtype=str)
+capacity = np.char.replace(capacity, ',', '.')
+capacity = capacity.astype(float)
+competition = np.array(competition, dtype=str)
+competition = np.char.replace(competition, ',', '.')
+competition = competition.astype(float)
+
+inputs_df = pd.DataFrame({'capacity': capacity})
+
+for ii in range(5):
+    tempertaure_2m, cloud_cover, cloud_cover_low, cloud_cover_high, cloud_cover_mid, weather_code = [], [], [], [], [], []
+
+    for i, date in enumerate(weather_df['date']):
+        hour = int(str(date)[11]+str(date)[12])
+        if hour >= 6 and hour <= 21:
+            tempertaure_2m.append(weather_df['temperature_2m_' + str(ii + 1)][i])
+            cloud_cover.append(weather_df['cloud_cover_' + str(ii + 1)][i])
+            cloud_cover_low.append(weather_df['cloud_cover_low_' + str(ii + 1)][i])
+            cloud_cover_high.append(weather_df['cloud_cover_high_' + str(ii + 1)][i])
+            cloud_cover_mid.append(weather_df['cloud_cover_mid_' + str(ii + 1)][i])
+            weather_code.append(weather_df['weather_code_' + str(ii + 1)][i])
+
+    tempertaure_2m = np.array(tempertaure_2m, dtype=float)
+    cloud_cover = np.array(cloud_cover, dtype=float)
+    cloud_cover_low = np.array(cloud_cover_low, dtype=float)
+    cloud_cover_mid = np.array(cloud_cover_mid, dtype=float)
+    cloud_cover_high = np.array(cloud_cover_high, dtype=float)
+    weather_code = np.array(weather_code, dtype=int)
+
+    weathers_df = pd.DataFrame({
+        'temperature_2m_' + str(ii + 1) : np.repeat(tempertaure_2m, 4),
+        'cloud_cover_' + str(ii + 1) : np.repeat(cloud_cover, 4),
+        'cloud_cover_low_' + str(ii + 1) : np.repeat(cloud_cover_low, 4),
+        'cloud_cover_mid_' + str(ii + 1) : np.repeat(cloud_cover_mid, 4),
+        'cloud_cover_high_' + str(ii + 1) : np.repeat(cloud_cover_high, 4),
+        'weather_code_' + str(ii + 1) : np.repeat(weather_code, 4)
+    })
+
+    inputs_df = inputs_df.join(weathers_df, how='inner')
+    # inputs_df = pd.join([inputs_df, weathers_df], axis=1)
+
+solar_angles = []
+
+for i, date in enumerate(solar_angles_df['Time']):
+    hour = int(str(date)[11]+str(date)[12])
+    if hour >= 6 and hour <= 21:
+        solar_angles.append(solar_angles_df['Altitude (degrees)'][i])
+solar_angles = np.array(solar_angles, dtype=float)
+
+# inputs_df = inputs_df.join(solar_angles_df.iloc[:, -2:], how='inner')
+inputs_df['Altitude (degrees)'] = solar_angles
+
+x_test = inputs_df.tail(int(len(inputs_df) * 0.15) + (1 + 4 * 11))
+y_test = solar_generation[int(len(solar_angles) * 0.85) - (4 * 11):]
+competition_test = competition[int(len(solar_angles) * 0.85) - (4 * 11):]
+timestamps_test = timestamps[int(len(solar_angles) * 0.85) - (4 * 11):]
+
+test_len_15 = int(0.2 * len(solar_angles) - 1) - 6*4
+
+
+# Function to evaluate a model
 def evaluate_model(predictions, actual_generation):
     """
     Evaluate model predictions against actual values and return metrics
