@@ -25,7 +25,7 @@ The training took about 40 epochs.
 
 ![train feed](https://github.com/user-attachments/assets/f52eb6f7-ba7e-4901-a624-ad4d8124d494)
 
-
+Below are the plots of predictions vs actual generation for three days.
 
 ![days](https://github.com/user-attachments/assets/3f694ef4-d5a0-42fb-aab8-f46098d943e3)
 
