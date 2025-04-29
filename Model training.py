@@ -122,7 +122,7 @@ class feedforwardNN:
         Initialize the feedforward neural network parameters.
         """
         self.ignore_columns = ignore_columns or []
-        self.hidden_layers = hidden_layers or [64, 32]
+        self.hidden_layers = hidden_layers or [64, 32, 16]
         self.activation = activation
         self.learning_rate = learning_rate
         self.epochs = epochs
