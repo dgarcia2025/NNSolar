@@ -17,9 +17,33 @@ This project compares 3 models. Feedforward, LSTM and an informer. The data sepa
 
 ### FeedForward
 
+- Inputs layer
+- 64 neurons, 'relu' activation
+- 20 % dropout
+- 32 neurons, 'relu' activation
+- 20 % dropout
+- 16 neurons, 'relu' activation
+- 20 % dropout
+- Output
+
 ### LSTM
 
+- Inputs layer
+- 64 neurons, LSTM, return_requences = True, 'tanh' activation, 'sigmoid' recurrent activation
+- 20 % dropout
+- 64 neurons, LSTM, return_requences = True, 'tanh' activation, 'sigmoid' recurrent activation
+- 20 % dropout
+- 32 neurons, LSTM, return_requences = False
+- 20 % dropout
+- Output
+
 ### Informer
+
+- Inputs layer
+- Dense layer, 'relu' activation
+- Informer blocks: Multi-Head Attention, Normalization, Feed Forward Network, Normalization
+- Multi-Layer perceptron, 'relu' activation
+- Output
 
 ## Results
 
