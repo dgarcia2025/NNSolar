@@ -504,6 +504,42 @@ def predict(df, model_dict):
     # Return as a flat numpy array
     return predictions.flatten()
 
+# Prediction function used for model 2
+def predict_lstm(model, new_df, X_scaler, y_scaler, exclude_cols, sequence_length):
+    """
+    Make predictions using the trained LSTM model.
+
+    Parameters:
+    - model: trained LSTM model
+    - new_df: pandas DataFrame containing features for prediction
+    - X_scaler: fitted scaler for features
+    - y_scaler: fitted scaler for target
+    - exclude_cols: list of column names to exclude from features
+    - sequence_length: sequence length used during training
+
+    Returns:
+    - numpy array of predictions
+    """
+    # Derive feature columns by excluding specified columns
+    feature_cols = [col for col in new_df.columns if col not in exclude_cols]
+
+    # Extract and scale features
+    X = new_df[feature_cols].values
+    X_scaled = X_scaler.transform(X)
+
+    if len(X_scaled) < sequence_length:
+        raise ValueError(f"Need at least {sequence_length} samples to make a prediction, but got {len(X_scaled)}.")
+
+    # Create sequences
+    X_sequences = np.array([X_scaled[i:i + sequence_length] for i in range(len(X_scaled) - sequence_length + 1)])
+
+    # Make predictions
+    y_pred_scaled = model.predict(X_sequences)
+    y_pred = y_scaler.inverse_transform(y_pred_scaled)
+
+    return y_pred
+
+# Model 1
 # Substitute this with actual paths to models
 model_path = 'model1.keras'
 model_w = keras.models.load_model(model_path)
@@ -525,3 +561,18 @@ model = {
 
 # Smoothed
 # predictions = smooth_forecast(predict(x_test, model), smoothing=0.2)
+
+# run_evaluation(predictions, y_test)
+
+
+# Model 2
+# Substitute with actual paths
+# model_LSTM = load_model('model2.keras')
+# scaler_x = joblib.load('scalerX2.pkl')
+# scaler_y = joblib.load('scalery2.pkl')
+
+# prediction_lstm = predict_lstm(model, x_test, X_scaler, y_scaler, [], 4 * (22 - 6))
+
+# run_evaluation(predictions_lstm.T[0], y_test)
+
+
