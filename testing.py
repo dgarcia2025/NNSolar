@@ -576,3 +576,17 @@ model = {
 # run_evaluation(predictions_lstm.T[0], y_test)
 
 
+# # Model 3
+# # Substitute with actual paths
+# loaded_model = keras.models.load_model('informer_model.keras')
+# loaded_attributes = joblib.load('informer_attributes.pkl')
+
+# loaded_informer = InformerModel()
+# loaded_informer.model = loaded_model
+# loaded_informer.scaler_X = loaded_attributes['scaler_X']
+# loaded_informer.scaler_y = loaded_attributes['scaler_y']
+# loaded_informer.history = loaded_attributes['history']
+
+# predictions = loaded_informer.predict(x_test)
+
+# run_evaluation(predictions, y_test)
