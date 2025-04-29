@@ -1,3 +1,6 @@
+# Import everything from training.py
+from training import *
+
 # Code to evaluate the model
 
 # Reading the datasets
