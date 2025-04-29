@@ -398,3 +398,130 @@ def run_evaluation(predictions, actual_generation, time_increment=15): # 15 mins
             'timeseries': timeseries_plot
         }
     }
+
+# In case we want to apply some smoothing to the predictions
+
+def smooth_array(array, strength=0.8):
+    """
+    Smooths an array by reducing sharp transitions between values.
+    The function preserves the first and last values (assuming they're zeros).
+
+    Parameters:
+        array (list): The input array to smooth
+        strength (float): Smoothing strength between 0 and 1 (higher = smoother)
+
+    Returns:
+        list: The smoothed array
+    """
+    if not 0 <= strength < 1:
+        raise ValueError("Smoothing strength must be between 0 and 1")
+
+    # Convert to numpy array for easier manipulation
+    arr = np.array(array, dtype=float)
+    smoothed = arr.copy()
+
+    # Iteratively smooth the array
+    for _ in range(10):  # Number of iterations affects smoothness
+        # Create a temporary array to hold new values
+        temp = smoothed.copy()
+
+        # For each point (except first and last), adjust towards the average of neighbors
+        for i in range(1, len(arr) - 1):
+            # Calculate the average of the neighbors
+            neighbor_avg = (smoothed[i-1] + smoothed[i+1]) / 2
+
+            # Move the current value toward that average based on strength
+            temp[i] = smoothed[i] * (1 - strength) + neighbor_avg * strength
+
+        smoothed = temp
+
+    return smoothed.tolist()
+
+def smooth_forecast(forecasts, smoothing = 0.1, day_len = 22 - 6):
+    for i in range(int(len(forecasts) / day_len)):
+        forecasts[i * day_len * 4 : (i + 1) * day_len * 4] = smooth_array(forecasts[i * day_len * 4 : (i + 1) * day_len * 4], strength = smoothing)
+    return forecasts
+
+# Function used for prediction with model 1
+def predict(df, model_dict):
+    """
+    Make predictions using the trained model
+
+    Parameters:
+    -----------
+    df : pandas DataFrame
+        Input dataframe containing features
+    model_dict : dict, optional
+        Dictionary containing model, scaler, and metadata
+        (Either model_dict or model_dir must be provided)
+    model_dir : str, optional
+        Directory containing saved model components
+        (Used if model_dict is not provided)
+
+    Returns:
+    --------
+    numpy.ndarray
+        Predicted values as a numpy array
+    """
+
+    # Get model components
+    model = model_dict['model']
+    scaler = model_dict['scaler']
+    metadata = model_dict['metadata']
+
+    # Make a copy of the input dataframe
+    data = df.copy()
+
+    # Remove ignored columns if specified
+    if metadata['ignore_columns']:
+        data = data.drop(columns=[col for col in metadata['ignore_columns'] if col in data.columns])
+
+    # Process categorical columns
+    for col in metadata['categorical_columns']:
+        if col in data.columns:
+            # Create dummies consistent with training data
+            dummies = pd.get_dummies(data[col], prefix=col, drop_first=True)
+            data = pd.concat([data, dummies], axis=1)
+            data = data.drop(columns=[col])
+
+    # Ensure all expected columns are present (fill missing with zeros)
+    missing_cols = set(metadata['feature_names']) - set(data.columns)
+    for col in missing_cols:
+        data[col] = 0
+
+    # Select only the columns that were used during training and in the same order
+    data = data[metadata['feature_names']]
+
+    # Convert to numpy array
+    X = data.values
+
+    # Scale the features
+    X_scaled = scaler.transform(X)
+
+    # Make predictions
+    predictions = model.predict(X_scaled)
+
+    # Return as a flat numpy array
+    return predictions.flatten()
+
+# Substitute this with actual paths to models
+model_path = 'model1.keras'
+model_w = keras.models.load_model(model_path)
+scaler_path = 'scaler1.pkl'
+scaler = joblib.load(scaler_path)
+metadata_path = 'metadata1.pkl'
+metadata = joblib.load(metadata_path)
+
+model = {
+    'model': model_w,
+    'scaler': scaler,
+    'metadata': metadata
+}
+
+# Executing evaluations
+
+# As it is
+# predictions = predict(x_test, model)
+
+# Smoothed
+# predictions = smooth_forecast(predict(x_test, model), smoothing=0.2)
